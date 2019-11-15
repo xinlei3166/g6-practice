@@ -1,11 +1,10 @@
 import G6 from '@antv/g6'
 import Minimap from '@antv/g6/build/minimap'
 import Grid from '@antv/g6/build/grid'
-import '@antv/g6/build/plugins'
 import { clickAddEdge } from './behavior'
 
 const minimap = new Minimap({
-  size: [180, 180],
+  // size: [200, 120],
   container: 'graph-wrap',
   className: 'g6-minimap',
   viewportClassName: 'g6-minimap-viewport',
@@ -34,16 +33,10 @@ const defaultOptions = {
   modes: {
     default: [
       { type: 'drag-canvas' },
-      { type: 'zoom-canvas' },
-      { type: 'click-select' },
-      { type: 'drag-node' },
-      // { type: 'tooltip' },
-      // { type: 'edge-tooltip' },
-      { type: 'clickAddEdge' }
+      { type: 'click-select' }
     ], // 允许拖拽画布、放缩画布、拖拽节点
     edit: [
       { type: 'drag-canvas' },
-      { type: 'zoom-canvas' },
       { type: 'click-select' },
       { type: 'drag-node' },
       { type: 'clickAddEdge' }
@@ -53,7 +46,9 @@ const defaultOptions = {
       { type: 'zoom-canvas' },
       { type: 'click-select' },
       { type: 'drag-node' },
-      { type: 'clickAddEdge' }
+      { type: 'clickAddEdge' },
+      { type: 'tooltip' },
+      { type: 'edge-tooltip' }
     ]
   },
   nodeStateStyles: { // 节点不同状态下的样式集合
@@ -62,7 +57,7 @@ const defaultOptions = {
     },
     // 鼠标点击节点，即 click 状态为 true 时的样式
     click: {
-      stroke: 'grey',
+      stroke: '#000000',
       // stroke: '#000',
       lineWidth: 1
     }
@@ -106,11 +101,11 @@ const defaultOptions = {
   defaultEdge: { // 边在默认状态下的样式配置（style）和其他配置
     shape: 'line', // arc/polyline/line/quadratic/cubic/loop
     style: { // 边样式配置
-      opacity: 0.6, // 边透明度
-      stroke: 'grey', // 边描边颜色
+      opacity: 1, // 边透明度
+      stroke: '#303133', // 边描边颜色
       startArrow: false,
       endArrow: true,
-      lineWidth: 1.5,
+      lineWidth: 1,
       lineAppendWidth: 5
     },
     labelCfg: { // 边上的标签文本配置
@@ -151,10 +146,11 @@ export default class Graph {
     this.registerNode(this.nodes)
     this.registerEdge(this.edges)
     this.graph = new G6.Graph(this.options) // 创建 G6 图实例
-    this.graph.data(data) // 读取数据
+    this.graph.data(this.data) // 读取数据
     this.addEvent(this.events)
     this.clickEdgeId = ''
     this.rightClickNodeId = ''
+    this.clickNodeId = ''
   }
   render() {
     // 渲染图
@@ -185,13 +181,15 @@ export default class Graph {
       this.clickEdgeId = edge._cfg.id
     })
     this.graph.on('edge:contextmenu', e => {
-      const edge = e.item
-      this.graph.remove(edge)
+      if (this.isEdit) {
+        const edge = e.item
+        this.graph.remove(edge)
+      }
     })
 
     // 上下文监听事件
     this.graph.on('keydown', e => {
-      if (e.code === 'Backspace' && this.clickEdgeId) {
+      if (e.code === 'Backspace' && this.clickEdgeId && this.isEdit) {
         const edge = this.graph.findById(this.clickEdgeId)
         this.graph.remove(edge)
       }
@@ -200,6 +198,10 @@ export default class Graph {
       const clickEdges = this.graph.findAllByState('edge', 'click')
       clickEdges.forEach(ce => {
         this.graph.setItemState(ce, 'click', false)
+      })
+      const clickNodes = this.graph.findAllByState('node', 'click')
+      clickNodes.forEach(cn => {
+        this.graph.setItemState(cn, 'click', false)
       })
     })
     this.graph.on('contextmenu', e => {
@@ -216,14 +218,18 @@ export default class Graph {
       menu.style.visibility = 'hidden'
       menu.style.left = '-100px'
       const node = e.item
-      this.graph.setItemState(node, 'hover', false) // 设置当前节点的 over 状态为 false
+      this.graph.setItemState(node, 'hover', false) // 设置当前节点的hover 状态为 false
     })
     this.graph.on('node:contextmenu', e => {
-      const menu = document.getElementById('node-context-menu')
-      menu.style.left = e.x + 'px'
-      menu.style.top = e.y + 'px'
-      menu.style.visibility = 'visible'
-      this.rightClickNodeId = e.item._cfg.id
+      if (this.isEdit) {
+        const menu = document.getElementById('node-context-menu')
+        menu.style.left = e.x + 'px'
+        menu.style.top = e.y + 'px'
+        menu.style.visibility = 'visible'
+        this.rightClickNodeId = e.item.getModel().id
+      } else {
+        e.event.preventDefault()
+      }
     })
     this.graph.on('node:click', e => {
       // 先将所有当前是 click 状态的节点置为非 click 状态
@@ -233,6 +239,7 @@ export default class Graph {
       })
       const node = e.item // 获取被点击的节点元素对象
       this.graph.setItemState(node, 'click', true) // 设置当前节点的 click 状态为 true
+      this.clickNodeId = node.getModel().id
     })
 
     for (let event of events) {
@@ -288,11 +295,38 @@ export default class Graph {
       this.addNode(node)
     }
   }
-  removeNode() {
+  addEdge(e) {
     const node = this.graph.findById(this.rightClickNodeId)
+    const params = { item: node, ...this.graph.getPointByClient(e.clientX, e.clientY) }
+    this.graph.emit('node:dblclick', params)
+    this.resetNodeContentMenu()
+    // this.graph.getPointByClient(e.clientX, e.clientY)
+    // this.graph.getClientByPoint(model.x, model.y)
+  }
+  removeNode() {
+    if (this.clickNodeId) {
+      this._removeNode(this.clickNodeId)
+    }
+  }
+  rightRemoveNode() {
+    if (this.rightClickNodeId) {
+      this._removeNode(this.rightClickNodeId)
+      this.resetNodeContentMenu()
+    }
+  }
+  _removeNode(id) {
+    const node = this.graph.findById(id)
     this.graph.remove(node)
   }
-  // changeMode(mode) {
-  //
-  // }
+  resetNodeContentMenu() {
+    const menu = document.getElementById('node-context-menu')
+    menu.style.visibility = 'hidden'
+    menu.style.left = '-100px'
+  }
+  setMode(mode = 'default') {
+    this.graph.setMode(mode)
+  }
+  get isEdit() {
+    return this.graph.getCurrentMode() === 'edit'
+  }
 }

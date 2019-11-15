@@ -3,12 +3,25 @@
     <header class="header">
       <el-button plain v-text="edit ? '编辑' : '预览'" @click="edit=!edit"></el-button>
       <el-button v-if="edit" type="primary" plain @click="onAddNode">新增节点</el-button>
+      <el-button v-if="edit" type="danger" plain @click="onRemoveNode">删除节点</el-button>
       <el-button v-if="edit" type="success" plain @click="onSave">保存节点</el-button>
     </header>
     <div id="graph" :style="{ width: graphWidth + 'px', height: graphHeight + 'px' }">
-      <div id="node-context-menu">
-        <el-button class="btn" type="primary" @click="onAdjacentAddNode">新增节点</el-button>
-        <el-button class="btn" type="danger" @click="onRemoveNode">删除节点</el-button>
+      <div v-show="edit" id="node-context-menu">
+        <div class="btn" @click="onAddEdge">
+          <i class="el-icon-share btn-icon"></i>
+          <button class="btn-text">连接节点</button>
+        </div>
+        <div class="btn" @click="onAdjacentAddNode">
+          <i class="el-icon-circle-plus btn-icon"></i>
+          <button class="btn-text">新增节点</button>
+        </div>
+        <div class="btn" @click="onRightRemoveNode">
+          <i class="el-icon-remove btn-icon"></i>
+          <button class="btn-text">删除节点</button>
+        </div>
+<!--        <el-button class="btn" size="mini" type="primary" @click="onAdjacentAddNode">新增节点</el-button>-->
+<!--        <el-button class="btn" size="mini" type="danger" @click="onRemoveNode">删除节点</el-button>-->
       </div>
     </div>
   </div>
@@ -41,8 +54,14 @@ export default {
         this.graph.addNode()
       }
     },
+    onAddEdge(e) {
+      this.graph.addEdge(e)
+    },
     onRemoveNode() {
       this.graph.removeNode()
+    },
+    onRightRemoveNode() {
+      this.graph.rightRemoveNode()
     },
     onSave() {
       const r = this.graph.graph.save()
@@ -59,13 +78,18 @@ export default {
           { class: 'node-5', id: '5', label: '第六个节点', x: 300, y: 300 }
         ],
         edges: [
-          { source: '0', target: '1', weight: 1 },
-          { source: '1', target: '2', weight: 1 },
-          { source: '2', target: '3', weight: 1 }
+          { source: '0', target: '1' },
+          { source: '1', target: '2' },
+          { source: '2', target: '3' }
         ]
       }
       this.graph = new Graph(data, { width: this.graphWidth, height: this.graphHeight })
       this.graph.render()
+    }
+  },
+  watch: {
+    edit(val) {
+      val ? this.graph.setMode('edit') : this.graph.setMode()
     }
   }
 }
@@ -102,17 +126,47 @@ export default {
     flex-direction: column;
     justify-content: center;
     position: absolute;
-    padding: 10px;
+    padding: 6px 0;
     left: -100px;
     visibility: hidden;
-    background: #F2F6FC;
-    border: 1px solid #DCDFE6;
+    background: #fff;
+    border: 1px solid #EBEEF5;
     border-radius: 4px;
-    .btn:not(:nth-of-type(1)) {
-      flex-shrink: 0;
-      width: 100px;
-      margin-left: 0;
-      margin-top: 5px;
+    /*  background: #F2F6FC;
+    border: 1px solid #DCDFE6;*/
+    /*.btn:not(:nth-of-type(1)) {*/
+    /*  flex-shrink: 0;*/
+    /*  width: 100px;*/
+    /*  margin-left: 0;*/
+    /*  margin-top: 5px;*/
+    /*}*/
+    .btn {
+      font-size: 15px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      &:hover {
+        background: #DCDFE6;
+        color: #409EFF;
+        .btn-text {
+          color: #409EFF;
+        }
+      }
+      .btn-icon {
+        margin-right: 6px;
+        font-size: 17px;
+      }
+      .btn-text {
+        margin: 0;
+        padding: 0;
+        outline: none;
+        border: none;
+        background: none;
+        font-size: 15px;
+        color: #2c3e50;
+        cursor: pointer;
+      }
     }
   }
 </style>

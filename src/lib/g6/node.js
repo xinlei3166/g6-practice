@@ -1,3 +1,4 @@
+// 自定义节点
 export const customNode = (nodeSize) => {
   return {
     anchor: [
