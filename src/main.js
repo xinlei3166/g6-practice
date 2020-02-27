@@ -7,7 +7,12 @@ import 'element-ui/lib/theme-chalk/index.css'
 
 Vue.config.productionTip = false
 Vue.use(ElementUI, { size: 'small', zIndex: 3000 })
-
+const a = 1
+Vue.prototype.$show = function show() {
+  if (a === 1) {
+    return 1
+  }
+}
 new Vue({
   router,
   store,

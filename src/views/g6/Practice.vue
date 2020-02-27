@@ -5,6 +5,10 @@
       <el-button v-if="edit" type="primary" plain @click="onAddNode">新增节点</el-button>
       <el-button v-if="edit" type="danger" plain @click="onRemoveNode">删除节点</el-button>
       <el-button v-if="edit" type="success" plain @click="onSave">保存节点</el-button>
+      <el-select v-if="edit" v-model="edgeShape" placeholder="线条类型" class="edge-shape-select" @change="onEdgeShapeChange">
+        <el-option label="直线" value="line"></el-option>
+        <el-option label="折线" value="customPolyline"></el-option>
+      </el-select>
     </header>
     <div id="graph" :style="{ width: graphWidth + 'px', height: graphHeight + 'px' }">
       <div v-show="edit" id="node-context-menu">
@@ -23,6 +27,9 @@
 <!--        <el-button class="btn" size="mini" type="primary" @click="onAdjacentAddNode">新增节点</el-button>-->
 <!--        <el-button class="btn" size="mini" type="danger" @click="onRemoveNode">删除节点</el-button>-->
       </div>
+      <div v-show="edit" id="edge-label-input">
+        <el-input v-model="edgeLabel" @blur="onEdgeLabelBlur"></el-input>
+      </div>
     </div>
   </div>
 </template>
@@ -34,18 +41,31 @@ export default {
   name: 'G6-Practice',
   props: {
     graphWidth: { type: Number, default: 800 },
-    graphHeight: { type: Number, default: 700 }
+    graphHeight: { type: Number, default: 1200 }
   },
   data() {
     return {
       graph: null,
-      edit: false
+      edit: false,
+      edgeLabel: '',
+      edgeShape: ''
     }
   },
   async mounted() {
     await this.init()
   },
   methods: {
+    onEdgeLabelBlur(e) {
+      const val = e.target.value
+      const edge = this.graph.graph.findById(this.graph.clickEdgeId)
+      this.graph.graph.updateItem(edge, { label: val })
+      this.graph.isEditEageLabel = false
+      const labelInput = document.getElementById('edge-label-input')
+      labelInput.style.visibility = 'hidden'
+    },
+    onEdgeShapeChange(val) {
+      this.graph.graph.edgeShape = val
+    },
     onAdjacentAddNode() {
       this.graph.adjacentAddNode()
     },
@@ -70,17 +90,10 @@ export default {
     async init() {
       const data = {
         nodes: [
-          { class: 'node-0', id: '0', label: '第一个节点', x: 300, y: 50 },
-          { class: 'node-1', id: '1', label: '第二个节点', x: 300, y: 100 },
-          { class: 'node-2', id: '2', label: '第三个节点', x: 300, y: 150 },
-          { class: 'node-3', id: '3', label: '第四个节点', x: 300, y: 200 },
-          { class: 'node-4', id: '4', label: '第五个节点', x: 300, y: 250 },
-          { class: 'node-5', id: '5', label: '第六个节点', x: 300, y: 300 }
+          { class: 'node-0', id: '0', label: '第一个节点', x: 300, y: 50 }
         ],
         edges: [
-          { source: '0', target: '1' },
-          { source: '1', target: '2' },
-          { source: '2', target: '3' }
+          // { source: '0', target: '1' }
         ]
       }
       this.graph = new Graph(data, { width: this.graphWidth, height: this.graphHeight })
@@ -106,11 +119,18 @@ export default {
     align-items: center;
   }
   .header {
+    position: relative;
     background: #E4E7ED;
     width: 800px;
     display: flex;
     padding: 10px 16px;
     box-sizing: border-box;
+    .edge-shape-select {
+      position: absolute;
+      right: 16px;
+      width: 100px;
+      margin-left: 10px;
+    }
   }
   /deep/ .g6-minimap {
     position: absolute;
@@ -168,5 +188,13 @@ export default {
         cursor: pointer;
       }
     }
+  }
+
+  #edge-label-input {
+    position: absolute;
+    top: 10px;
+    left: -100px;
+    width: 200px;
+    visibility: hidden;
   }
 </style>

@@ -1,7 +1,8 @@
 import G6 from '@antv/g6'
 import Minimap from '@antv/g6/build/minimap'
 import Grid from '@antv/g6/build/grid'
-import { clickAddEdge } from './behavior'
+import { clickAddEdge, clickLinkPointAddEdge } from './behavior'
+import { customPolyline } from './edge'
 
 const minimap = new Minimap({
   // size: [200, 120],
@@ -39,14 +40,16 @@ const defaultOptions = {
       { type: 'drag-canvas' },
       { type: 'click-select' },
       { type: 'drag-node' },
-      { type: 'clickAddEdge' }
+      // { type: 'clickAddEdge' },
+      { type: 'clickLinkPointAddEdge' }
     ],
     all: [
       { type: 'drag-canvas' },
       { type: 'zoom-canvas' },
       { type: 'click-select' },
       { type: 'drag-node' },
-      { type: 'clickAddEdge' },
+      // { type: 'clickAddEdge' },
+      { type: 'clickLinkPointAddEdge' },
       { type: 'tooltip' },
       { type: 'edge-tooltip' }
     ]
@@ -89,26 +92,43 @@ const defaultOptions = {
     },
     anchorPoints: [
       [0.5, 0], // 上中
-      [1, 0.5], // 右中
-      [0.5, 1], // 下中
-      [0, 0.5], // 左中
-      [0, 0], // 左上
-      [1, 0], // 右上
-      [1, 1], // 右下
-      [0, 1] // 左下
-    ]
+      // [1, 0.5], // 右中
+      [0.5, 1] // 下中
+      // [0, 0.5], // 左中
+      // [0, 0], // 左上
+      // [1, 0], // 右上
+      // [1, 1], // 右下
+      // [0, 1] // 左下
+    ],
+    linkPoints: {
+      top: true,
+      bottom: true,
+      left: false,
+      right: false,
+      size: 4,
+      stroke: '#409EFF',
+      // stroke: '#67C23A',
+      fill: '#fff',
+      lineWidth: 1
+    }
   },
   defaultEdge: { // 边在默认状态下的样式配置（style）和其他配置
-    shape: 'line', // arc/polyline/line/quadratic/cubic/loop
+    shape: 'customPolyline', // arc/polyline/line/quadratic/cubic/loop
     style: { // 边样式配置
       opacity: 1, // 边透明度
       stroke: '#303133', // 边描边颜色
-      startArrow: false,
       endArrow: true,
       lineWidth: 1,
-      lineAppendWidth: 5
+      lineAppendWidth: 5,
+      radius: 10,
+      cursor: 'pointer'
     },
     labelCfg: { // 边上的标签文本配置
+      refY: 20,
+      style: { // 节点上的标签文本样式配置
+        fill: '#000', // 节点标签文字颜色
+        cursor: 'pointer'
+      },
       autoRotate: true // 边上的标签文本根据边的方向旋转
     }
   }
@@ -171,25 +191,36 @@ export default class Graph {
       this.graph.setItemState(edge, 'hover', false) // 设置当前节点的 hover 状态为 false
     })
     this.graph.on('edge:click', e => {
-      // 先将所有当前是 click 状态的边置为非 click 状态
-      // const clickEdges = this.graph.findAllByState('edge', 'click')
-      // clickEdges.forEach(ce => {
-      //   this.graph.setItemState(ce, 'click', false)
-      // })
-      // this.graph.setItemState(edge, 'click', true) // 设置当前边的 click 状态为 true
       const edge = e.item // 获取被点击的边元素对象
       this.clickEdgeId = edge._cfg.id
+      // 先将所有当前是 click 状态的边置为非 click 状态
+      const clickEdges = this.graph.findAllByState('edge', 'click')
+      clickEdges.forEach(ce => {
+        this.graph.setItemState(ce, 'click', false)
+      })
+      this.graph.setItemState(edge, 'click', true) // 设置当前边的 click 状态为 true
     })
-    this.graph.on('edge:contextmenu', e => {
-      if (this.isEdit) {
-        const edge = e.item
-        this.graph.remove(edge)
+    this.graph.on('edge:dblclick', e => {
+      const edge = e.item // 获取被点击的边元素对象
+      this.clickEdgeId = edge._cfg.id
+      if (this.isEdit && !this.isEditEageLabel) {
+        const labelInput = document.getElementById('edge-label-input')
+        labelInput.style.left = e.x - 60 + 'px'
+        labelInput.style.top = e.y - 40 + 'px'
+        labelInput.style.visibility = 'visible'
+        const input = labelInput.querySelector('input')
+        const label = edge.getModel().label ? edge.getModel().label : ''
+        this.graph.updateItem(edge, { label: '' })
+        input.value = label
+        this.isEditEageLabel = true
+      } else {
+        e.event.preventDefault()
       }
     })
 
     // 上下文监听事件
     this.graph.on('keydown', e => {
-      if (e.code === 'Backspace' && this.clickEdgeId && this.isEdit) {
+      if (e.code === 'Backspace' && this.clickEdgeId && this.isEdit && !this.isEditEageLabel) {
         const edge = this.graph.findById(this.clickEdgeId)
         this.graph.remove(edge)
       }
@@ -212,6 +243,7 @@ export default class Graph {
     this.graph.on('node:mouseenter', e => {
       const node = e.item
       this.graph.setItemState(node, 'hover', true) // 设置当前节点的 hover 状态为 true
+      this.graph.updateItem(node, { linkPoints: { top: true } })
     })
     this.graph.on('node:mouseleave', e => {
       const menu = document.getElementById('node-context-menu')
@@ -246,22 +278,28 @@ export default class Graph {
       this.graph.on(event.name, event.handler)
     }
   }
+
   registerBehavior(behaviors = []) {
     G6.registerBehavior('clickAddEdge', clickAddEdge)
+    G6.registerBehavior('clickLinkPointAddEdge', clickLinkPointAddEdge)
     for (let b of behaviors) {
       G6.registerBehavior(b.type, b.behavior)
     }
   }
+
   registerNode(nodes = []) {
     for (let node of nodes) {
       G6.registerNode(node.shapeType, node.cfg)
     }
   }
+
   registerEdge(edges = []) {
+    G6.registerEdge('customPolyline', customPolyline, 'polyline')
     for (let edge of edges) {
       G6.registerEdge(edge.shapeType, edge.cfg)
     }
   }
+
   save() {
     return this.graph.save()
   }
@@ -297,8 +335,8 @@ export default class Graph {
   }
   addEdge(e) {
     const node = this.graph.findById(this.rightClickNodeId)
-    const params = { item: node, ...this.graph.getPointByClient(e.clientX, e.clientY) }
-    this.graph.emit('node:dblclick', params)
+    const params = { clickAddEdge: true, item: node, ...this.graph.getPointByClient(e.clientX, e.clientY) }
+    this.graph.emit('node:click', params)
     this.resetNodeContentMenu()
     // this.graph.getPointByClient(e.clientX, e.clientY)
     // this.graph.getClientByPoint(model.x, model.y)
